@@ -74,11 +74,11 @@ class RedisSessionHandler extends \SessionHandler
     private $open_sessions = [];
 
     /**
-     * The name of the session cookie.
+     * The name of the session.
      *
      * @var string
      */
-    private $cookieName = null;
+    private $sessionName = null;
 
     public function __construct()
     {
@@ -96,7 +96,7 @@ class RedisSessionHandler extends \SessionHandler
      */
     public function open($save_path, $name)
     {
-        $this->cookieName = $name;
+        $this->sessionName = $name;
 
         list(
             $host, $port, $timeout, $prefix, $auth, $database
@@ -138,8 +138,10 @@ class RedisSessionHandler extends \SessionHandler
     {
         if ($this->mustRegenerate($session_id)) {
             session_id($session_id = $this->create_sid());
-            $params = session_get_cookie_params();
-            setcookie($this->cookieName, $session_id, time() + $params['lifetime'], $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+            if (ini_get('session.use_cookies')) {
+                $params = session_get_cookie_params();
+                setcookie($this->sessionName, $session_id, time() + $params['lifetime'], $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+            }
         }
 
         $this->acquireLockOn($session_id);
