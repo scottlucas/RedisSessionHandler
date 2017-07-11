@@ -30,6 +30,24 @@ class BasicTest extends EndToEndTestCase
     }
 
     /**
+     * This test sends an anonymous request to a PHP
+     * script that will create a session using URL based sessions.
+     *
+     * After this, the response should have a link prepended
+     * with the new session ID, its body should be '1', and Redis
+     * should have exactly one entry.
+     */
+    public function testAnonymousRequestWithURLBasedSessions()
+    {
+        $response = $this->http->send(
+            new Request('GET', '/visit-counter.php?with_url_based_sessions')
+        );
+
+        $this->assertRegExp('/1<a href="visit-counter.php\?PHPSESSID=.+">Link<\/a>/', (string) $response->getBody());
+        $this->assertSame(1, $this->redis->dbSize());
+    }
+
+    /**
      * This test sends two anonymous, unrelated requests to a PHP
      * script that will create a session for each one of them.
      *
@@ -87,6 +105,32 @@ class BasicTest extends EndToEndTestCase
     }
 
     /**
+     * This test sends an anonymous request, then a second one
+     * authenticated with the session ID received in the first.
+     *
+     * After this, the first response should have a session ID link
+     * with its new session ID and the number should be '1'.The second
+     * response should have the same session ID header and its number
+     * should be '2'. Redis should have exactly one entry.
+     */
+    public function testRelatedRequestsWithURLBasedSessions()
+    {
+        $firstResponse = $this->http->send(
+            new Request('GET', '/visit-counter.php?with_url_based_sessions')
+        );
+        preg_match('/PHPSESSID=([^"]+)/', $firstResponse->getBody(), $session_id);
+
+        $secondResponse = $this->http->send(
+            new Request('GET', '/visit-counter.php?with_url_based_sessions&PHPSESSID='.$session_id[1])
+        );
+
+        $this->assertSame('1<a href="visit-counter.php?PHPSESSID='.$session_id[1].'">Link</a>', (string) $firstResponse->getBody());
+        $this->assertSame('2<a href="visit-counter.php?PHPSESSID='.$session_id[1].'">Link</a>', (string) $secondResponse->getBody());
+
+        $this->assertSame(1, $this->redis->dbSize());
+    }
+
+    /**
      * This test sends a malicious request attempting a session
      * fixation attack.
      *
@@ -126,6 +170,27 @@ class BasicTest extends EndToEndTestCase
         $this->assertSame('1', (string) $response->getBody());
 
         $this->assertCustomCookieParams($response);
+
+        $this->assertSame(1, $this->redis->dbSize());
+        $this->assertFalse($this->redis->get(SavePathParser::DEFAULT_PREFIX.'madeupkey'));
+    }
+
+    /**
+     * This test sends a malicious request attempting a session
+     * fixation attack.
+     *
+     * After this, the response should have a 'Set-Cookie' header with
+     * a newly generated ID and its body should be '1'. Redis should
+     * have exactly one entry, and its key should not be 'madeupkey'.
+     */
+    public function testMaliciousRequestWithURLBasedSessions()
+    {
+        $response = $this->http->send(
+            new Request('GET', '/visit-counter.php?with_url_based_sessions&PHPSESSID=madeupkey')
+        );
+
+        $this->assertRegExp('/1<a href="visit-counter.php\?PHPSESSID=.+">Link<\/a>/', (string) $response->getBody());
+        $this->assertNotSame('1<a href="visit-counter.php?PHPSESSID=madeupkey">Link</a>', (string) $response->getBody());
 
         $this->assertSame(1, $this->redis->dbSize());
         $this->assertFalse($this->redis->get(SavePathParser::DEFAULT_PREFIX.'madeupkey'));

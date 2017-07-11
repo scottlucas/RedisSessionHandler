@@ -10,6 +10,10 @@ if (isset($_GET['with_no_time_limit'])) {
     set_time_limit(0);
 } elseif (isset($_GET['with_custom_cookie_params'])) {
     session_set_cookie_params(86400, '/', '', true, true);
+} elseif (isset($_GET['with_url_based_sessions'])) {
+    ini_set("session.use_cookies", 0);
+    ini_set("session.use_only_cookies", 0);
+    ini_set("session.use_trans_sid", 1);
 }
 
 session_set_save_handler(new \UMA\RedisSessionHandler(), true);
@@ -21,3 +25,7 @@ if (!isset($_SESSION['visits'])) {
 }
 
 echo ++$_SESSION['visits'];
+
+if (isset($_GET['with_url_based_sessions'])) {
+    echo '<a href="visit-counter.php">Link</a>';
+}
