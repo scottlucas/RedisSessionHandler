@@ -90,7 +90,9 @@ class RedisSessionHandler extends \SessionHandler
         }
 
         $this->redis = new \Redis();
-        $this->lock_ttl = (int) ini_get('max_execution_time');
+        $this->lock_ttl = (int) ini_get('max_execution_time') + 1;
+
+        // May be overriden on save using constant SESSION_TTL_OVERRIDE
         $this->session_ttl = (int) ini_get('session.gc_maxlifetime');
     }
 
@@ -167,6 +169,12 @@ class RedisSessionHandler extends \SessionHandler
      */
     public function write($session_id, $session_data)
     {
+        if (defined('SESSION_TTL_OVERRIDE') && SESSION_TTL_OVERRIDE > 0) {
+            $this->session_ttl = intval(SESSION_TTL_OVERRIDE);
+        } else {
+            // Don't set lower than existing TTL (if any)
+            $this->session_ttl = max($this->session_ttl, $this->redis->ttl($session_id));
+        }
         return true === $this->redis->setex($session_id, $this->session_ttl, $session_data);
     }
 
