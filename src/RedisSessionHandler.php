@@ -142,6 +142,9 @@ class RedisSessionHandler extends \SessionHandler
     public function read($session_id)
     {
         if ($this->mustRegenerate($session_id)) {
+            // Temporary work around for PHP 7.3 break, assume new session to return empty string
+            $this->new_sessions[$session_id] = true;
+            /*
             session_id($session_id = $this->create_sid());
             $params = session_get_cookie_params();
             setcookie(
@@ -153,6 +156,7 @@ class RedisSessionHandler extends \SessionHandler
                 $params['secure'],
                 $params['httponly']
             );
+            */
         }
 
         $this->acquireLockOn($session_id);
